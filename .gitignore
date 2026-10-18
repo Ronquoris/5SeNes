@@ -12,6 +12,7 @@ build/
 
 # Markdown documents & project notes
 *.md
+!README.md
 
 # Local databases and logs
 *.db
