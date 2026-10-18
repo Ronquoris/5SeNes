@@ -6,10 +6,12 @@
 [![Backend](https://img.shields.io/badge/Backend-Fastify%20%7C%20TypeScript%20Node.js%2022-000000?style=for-the-badge&logo=fastify)](https://fastify.dev/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite%20PWA-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![Live Deployment](https://img.shields.io/badge/Live%20Deployment-Cloudflare%20Tunnel-F38020?style=for-the-badge&logo=cloudflare)](https://nickel-highlight-hide-units.trycloudflare.com/)
+[![Architecture Document](https://img.shields.io/badge/Architecture%20Doc-PDF%20Download-red?style=for-the-badge&logo=adobeacrobatreader)](./5Sense_Technical_Architecture.pdf)
 
 > **Theme 1:** Real-Time AI for Critical Decisions (Detect. Decide. Respond.)  
 > **Theme 3 (Wildcard):** Accessibility & Inclusion — AI for Good  
-> **Live Deployed Application:** [https://nickel-highlight-hide-units.trycloudflare.com/](https://nickel-highlight-hide-units.trycloudflare.com/)
+> **Live Deployed Application:** [https://nickel-highlight-hide-units.trycloudflare.com/](https://nickel-highlight-hide-units.trycloudflare.com/)  
+> **Official Technical Architecture Whitepaper:** [📄 Download 5Sense_Technical_Architecture.pdf](./5Sense_Technical_Architecture.pdf)
 
 ---
 
