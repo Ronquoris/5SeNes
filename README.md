@@ -5,11 +5,11 @@
 [![AI Engine](https://img.shields.io/badge/AI%20Inference-YOLOv8%20%7C%20Telum%20II%20Ready-FF6F00?style=for-the-badge)](https://onnxruntime.ai/)
 [![Backend](https://img.shields.io/badge/Backend-Fastify%20%7C%20TypeScript%20Node.js%2022-000000?style=for-the-badge&logo=fastify)](https://fastify.dev/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite%20PWA-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![Tunnel](https://img.shields.io/badge/Live%20Tunnel-Cloudflare%20Zero%20Trust-F38020?style=for-the-badge&logo=cloudflare)](https://downloaded-wearing-packaging-authors.trycloudflare.com)
+[![Live Deployment](https://img.shields.io/badge/Live%20Deployment-1a6beaf9003054.lhr.life-00FF66?style=for-the-badge&logo=fastify)](https://1a6beaf9003054.lhr.life/)
 
 > **Theme 1:** Real-Time AI for Critical Decisions (Detect. Decide. Respond.)  
 > **Theme 3 (Wildcard):** Accessibility & Inclusion — AI for Good  
-> **Live Prototype URL:** [https://downloaded-wearing-packaging-authors.trycloudflare.com](https://downloaded-wearing-packaging-authors.trycloudflare.com)
+> **Live Deployed Application:** [https://1a6beaf9003054.lhr.life/](https://1a6beaf9003054.lhr.life/)
 
 ---
 
@@ -249,10 +249,17 @@ Open `http://localhost:5173` in your browser. Touch or click anywhere on the scr
 
 ---
 
-## 👥 Hackathon Submission Information
+## 👥 Hackathon Submission & Team Information
 
 * **Event:** IBM Z Datathon 2026
-* **Team Submission:** 5Sense — Real-Time Spatial Voice Navigation
+* **Project Name:** 5Sense — Real-Time Spatial Voice Navigation
+* **Live Deployment URL:** [https://1a6beaf9003054.lhr.life/](https://1a6beaf9003054.lhr.life/)
 * **Public GitHub Repository:** [https://github.com/Ronquoris/5SeNes.git](https://github.com/Ronquoris/5SeNes.git)
-* **Live Deployment:** [https://downloaded-wearing-packaging-authors.trycloudflare.com](https://downloaded-wearing-packaging-authors.trycloudflare.com)
 * **License:** MIT
+
+### 🌟 Team Members:
+* **Shivanshu Aggarwal**
+* **Ronit Sarkar**
+* **Manas Mahajan**
+* **Po Hao**
+* **Tanvi Salunke**
