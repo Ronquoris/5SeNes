@@ -5,10 +5,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build outputs (built cleanly on target environment)
+# Build outputs
 dist/
 */dist/
 build/
+
+# Markdown documents & project notes
+*.md
 
 # Local databases and logs
 *.db
@@ -37,6 +40,14 @@ cloudflared.exe
 !.env.example
 !**/.env.example
 
+# Unwanted deployment files
+Caddyfile
+Dockerfile.web
+docker-compose.yml
+deploy_linuxone.sh
+obstacle-detection-mvp/
+*.docx
+
 # Editor & System metadata
 .vscode/
 .idea/
@@ -44,6 +55,3 @@ cloudflared.exe
 .gemini/
 .DS_Store
 Thumbs.db
-
-# Project planning documents
-*.docx
