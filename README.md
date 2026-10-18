@@ -5,11 +5,11 @@
 [![AI Engine](https://img.shields.io/badge/AI%20Inference-YOLOv8%20%7C%20Telum%20II%20Ready-FF6F00?style=for-the-badge)](https://onnxruntime.ai/)
 [![Backend](https://img.shields.io/badge/Backend-Fastify%20%7C%20TypeScript%20Node.js%2022-000000?style=for-the-badge&logo=fastify)](https://fastify.dev/)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite%20PWA-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![Live Deployment](https://img.shields.io/badge/Live%20Deployment-1a6beaf9003054.lhr.life-00FF66?style=for-the-badge&logo=fastify)](https://1a6beaf9003054.lhr.life/)
+[![Live Deployment](https://img.shields.io/badge/Live%20Deployment-Cloudflare%20Tunnel-F38020?style=for-the-badge&logo=cloudflare)](https://nickel-highlight-hide-units.trycloudflare.com/)
 
 > **Theme 1:** Real-Time AI for Critical Decisions (Detect. Decide. Respond.)  
 > **Theme 3 (Wildcard):** Accessibility & Inclusion — AI for Good  
-> **Live Deployed Application:** [https://1a6beaf9003054.lhr.life/](https://1a6beaf9003054.lhr.life/)
+> **Live Deployed Application:** [https://nickel-highlight-hide-units.trycloudflare.com/](https://nickel-highlight-hide-units.trycloudflare.com/)
 
 ---
 
@@ -253,7 +253,7 @@ Open `http://localhost:5173` in your browser. Touch or click anywhere on the scr
 
 * **Event:** IBM Z Datathon 2026
 * **Project Name:** 5Sense — Real-Time Spatial Voice Navigation
-* **Live Deployment URL:** [https://1a6beaf9003054.lhr.life/](https://1a6beaf9003054.lhr.life/)
+* **Live Deployment URL:** [https://nickel-highlight-hide-units.trycloudflare.com/](https://nickel-highlight-hide-units.trycloudflare.com/)
 * **Public GitHub Repository:** [https://github.com/Ronquoris/5SeNes.git](https://github.com/Ronquoris/5SeNes.git)
 * **License:** MIT
 
