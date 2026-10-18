@@ -113,6 +113,75 @@ export function playTurnCue(): void {
 }
 
 /**
+ * Directional Turn Audio Cue.
+ * Positions the turn chime clearly in the left or right ear using StereoPannerNode.
+ * Right turn = ascending high chime in right ear.
+ * Left turn = melodic warm chime in left ear.
+ */
+export function playSpatialTurnCue(direction: 'left' | 'right' | 'ahead' = 'ahead'): void {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  const panValue = direction === 'left' ? -0.88 : direction === 'right' ? 0.88 : 0;
+  let pannerNode: StereoPannerNode | null = null;
+  if ('createStereoPanner' in ctx) {
+    pannerNode = ctx.createStereoPanner();
+    pannerNode.pan.setValueAtTime(panValue, ctx.currentTime);
+  }
+
+  osc1.type = 'triangle';
+  osc2.type = 'sine';
+
+  if (direction === 'right') {
+    osc1.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+    osc2.frequency.setValueAtTime(880.0, ctx.currentTime + 0.08); // A5
+  } else if (direction === 'left') {
+    osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc2.frequency.setValueAtTime(698.46, ctx.currentTime + 0.08); // F5
+  } else {
+    osc1.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc2.frequency.setValueAtTime(880.0, ctx.currentTime + 0.08); // A5
+  }
+
+  gain.gain.setValueAtTime(0.2, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+
+  if (pannerNode) {
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(pannerNode);
+    pannerNode.connect(ctx.destination);
+  } else {
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(ctx.destination);
+  }
+
+  osc1.start();
+  osc2.start(ctx.currentTime + 0.08);
+  osc1.stop(ctx.currentTime + 0.12);
+  osc2.stop(ctx.currentTime + 0.3);
+
+  // Directional vibration pattern: left tap pulse vs right double pulse
+  vibrate(direction === 'left' ? [70, 40, 100] : direction === 'right' ? [100, 40, 70] : [60, 40, 60]);
+}
+
+/**
+ * Universal browser audio unlocker. Wakes up AudioContext and SpeechSynthesis on first touch/click.
+ */
+export function unlockAudio(): void {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    void ctx.resume();
+  }
+  speechQueue.unlock();
+}
+
+/**
  * Urgent low-frequency double chime for hazard alerts.
  */
 export function playHazardAlertChime(): void {

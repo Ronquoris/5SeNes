@@ -100,6 +100,7 @@ export function FloatingHoldToSpeakButton() {
       // User released while in hold-to-speak mode: finalize speech
       isHoldingToSpeakRef.current = false;
       stopVoiceRecognition();
+      setTimeout(() => speechQueue.setMicActive(false), 150);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate([30]);
       }

@@ -28,6 +28,9 @@ class SpeechQueueEngine {
   private nextId = 1;
   private isHeld = false;
   private isMicActive = false;
+  private micActiveTimer: number | null = null;
+  private watchdogTimers = new Map<number, number>();
+  private activeUtterances = new Set<SpeechSynthesisUtterance>();
   private assertiveListeners = new Set<Listener>();
   private politeListeners = new Set<Listener>();
 
@@ -41,7 +44,33 @@ class SpeechQueueEngine {
         this.getBestHumanVoice();
       };
       this.getBestHumanVoice();
+
+      // Chromium engine freeze watchdog: periodically resumes if paused mid-speech
+      setInterval(() => {
+        try {
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            if (window.speechSynthesis.speaking && window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+          }
+        } catch {}
+      }, 2500);
     }
+  }
+
+  /**
+   * Unlock SpeechSynthesis and WebAudio on user interaction (tap/click/key).
+   */
+  unlock(): void {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      const dummy = new SpeechSynthesisUtterance('');
+      dummy.volume = 0;
+      window.speechSynthesis.speak(dummy);
+    } catch {}
   }
 
   /**
@@ -116,12 +145,29 @@ class SpeechQueueEngine {
 
   /**
    * Puts speech queue on hold or sets microphone listening active state.
-   * When listening is active, ALL background voice is strictly silenced.
+   * When listening is active, background voice is silenced to prevent talking over user.
+   * Includes safety watchdog to prevent permanent audio lockouts.
    */
   setMicActive(active: boolean): void {
+    if (this.micActiveTimer !== null) {
+      clearTimeout(this.micActiveTimer);
+      this.micActiveTimer = null;
+    }
     this.isMicActive = active;
     if (active) {
       this.cancel();
+      // Safety auto-release: if speech recognition doesn't end cleanly, auto-release after 7s
+      this.micActiveTimer = window.setTimeout(() => {
+        if (this.isMicActive) {
+          console.warn('Auto-releasing stuck isMicActive lock');
+          this.isMicActive = false;
+          // Drain any queued navigation instruction
+          this.drainQueue();
+        }
+      }, 7000);
+    } else {
+      // Drain any queued speech that was pending
+      this.drainQueue();
     }
   }
 
@@ -137,6 +183,18 @@ class SpeechQueueEngine {
   release(): void {
     this.isHeld = false;
     this.isMicActive = false;
+    if (this.micActiveTimer !== null) {
+      clearTimeout(this.micActiveTimer);
+      this.micActiveTimer = null;
+    }
+    this.drainQueue();
+  }
+
+  private drainQueue(): void {
+    if (!this.speaking && this.queue.length > 0 && !this.isMicActive && !this.isHeld) {
+      const next = this.queue.shift();
+      if (next) this.speakNow(next);
+    }
   }
 
   private currentUtterance: SpeechSynthesisUtterance | null = null;
@@ -144,17 +202,18 @@ class SpeechQueueEngine {
   cancel(): void {
     this.queue = [];
     this.speaking = null;
+    this.clearAllWatchdogs();
     if (this.currentUtterance) {
       this.currentUtterance.onend = null;
       this.currentUtterance.onerror = null;
       this.currentUtterance = null;
     }
+    this.activeUtterances.clear();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
-          window.speechSynthesis.cancel();
         }
       } catch (e) {
         console.warn('speechSynthesis cancel error:', e);
@@ -162,10 +221,23 @@ class SpeechQueueEngine {
     }
   }
 
+  private clearAllWatchdogs(): void {
+    this.watchdogTimers.forEach((timer) => clearTimeout(timer));
+    this.watchdogTimers.clear();
+  }
+
   speak(text: string, priority: Priority, onEnd?: () => void): void {
-    // STRICT ACCESSIBILITY RULE: If the mic is active or listening is on, NO background speech can play!
+    if (!text || !text.trim()) return;
+
+    // If microphone is actively recording right this millisecond
     if (this.isMicActive || this.isHeld) {
-      console.log('Background speech blocked because microphone/listening is active:', text);
+      if (priority === 'CRITICAL' || priority === 'NAVIGATION') {
+        // Queue critical messages so they are spoken as soon as mic finishes
+        const item: QueueItem = { id: this.nextId++, text, priority, onEnd };
+        this.queue.push(item);
+        this.queue.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]);
+        while (this.queue.length > MAX_QUEUE_LENGTH) this.queue.pop();
+      }
       return;
     }
 
@@ -193,54 +265,87 @@ class SpeechQueueEngine {
     this.speaking = item;
     this.notify(item);
 
-    if (!('speechSynthesis' in window)) {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       this.onUtteranceEnd(item.id);
       return;
     }
 
+    // Wake up speech engine if stuck in paused state
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch {}
+
     const utter = new SpeechSynthesisUtterance(item.text);
     this.currentUtterance = utter;
+    this.activeUtterances.add(utter);
+
     const humanVoice = this.getBestHumanVoice();
     if (humanVoice) {
       utter.voice = humanVoice;
       utter.lang = humanVoice.lang;
     }
 
-    // Human conversational parameters: warm pitch lift, natural comfortable cadence
+    // Conversational parameters: clear, warm, natural cadence
     utter.rate = 1.0;
     utter.pitch = 1.04;
     utter.volume = 1.0;
 
-    utter.onend = () => {
-      if (this.currentUtterance === utter) this.currentUtterance = null;
-      this.onUtteranceEnd(item.id);
-    };
-    utter.onerror = () => {
+    let finished = false;
+    const finishUtterance = () => {
+      if (finished) return;
+      finished = true;
+      this.activeUtterances.delete(utter);
       if (this.currentUtterance === utter) this.currentUtterance = null;
       this.onUtteranceEnd(item.id);
     };
 
-    // Safety delay of 40ms to ensure any preceding cancelled utterance is cleanly purged by the OS audio device
-    setTimeout(() => {
-      if (this.speaking?.id === item.id && !this.isMicActive && !this.isHeld) {
-        window.speechSynthesis.speak(utter);
+    utter.onend = finishUtterance;
+    utter.onerror = (e) => {
+      console.warn('SpeechSynthesisUtterance error:', e);
+      finishUtterance();
+    };
+
+    // Universal watchdog timer: clears speaking state after estimated speech time + buffer
+    const wordCount = item.text.split(/\s+/).filter(Boolean).length;
+    const estimatedMs = Math.max(2500, Math.ceil(wordCount / 2.2) * 1000 + 2000);
+    const watchdogId = window.setTimeout(() => {
+      if (this.speaking?.id === item.id) {
+        console.warn('Speech watchdog auto-completing utterance:', item.text);
+        finishUtterance();
       }
-    }, 40);
+    }, estimatedMs);
+    this.watchdogTimers.set(item.id, watchdogId);
 
-    // Safety watchdog for browser engines (Chrome bug): ensure onEnd ALWAYS fires
-    if (item.onEnd) {
-      const estimatedMs = Math.max(2000, Math.ceil(item.text.split(/\s+/).length / 2.0) * 1000 + 1500);
-      setTimeout(() => {
-        if (this.speaking?.id === item.id) {
-          this.onUtteranceEnd(item.id);
+    // Speak utterance with brief pause for audio device buffer flush
+    setTimeout(() => {
+      if (this.speaking?.id === item.id) {
+        if (!this.isMicActive && !this.isHeld) {
+          try {
+            if (window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+            window.speechSynthesis.speak(utter);
+          } catch (speakErr) {
+            console.warn('speechSynthesis.speak error:', speakErr);
+            finishUtterance();
+          }
+        } else {
+          // Mic became active during delay: finish gracefully
+          finishUtterance();
         }
-      }, estimatedMs);
-    }
+      }
+    }, 30);
   }
 
   private onUtteranceEnd(finishedId: number): void {
-    // Guard against a stale callback from an utterance that was interrupted mid-flight — only
-    // advance the queue if this callback belongs to whatever is still marked as speaking.
+    const timer = this.watchdogTimers.get(finishedId);
+    if (timer) {
+      clearTimeout(timer);
+      this.watchdogTimers.delete(finishedId);
+    }
+
     if (this.speaking?.id !== finishedId) return;
     const prev = this.speaking;
     this.speaking = null;
@@ -250,7 +355,9 @@ class SpeechQueueEngine {
       console.warn('Speech onEnd callback error:', cbErr);
     }
     const next = this.queue.shift();
-    if (next) this.speakNow(next);
+    if (next && !this.isMicActive && !this.isHeld) {
+      this.speakNow(next);
+    }
   }
 
   private notify(item: QueueItem): void {

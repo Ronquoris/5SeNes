@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RouteResponse, RouteStep } from '../api/client';
 import { haversineMeters, bearingDegrees, headingDifference } from '../services/geoUtils';
-import { playWaypointPing, playTurnCue, playHazardAlertChime } from '../services/audioFeedback';
+import { playWaypointPing, playTurnCue, playHazardAlertChime, playSpatialTurnCue } from '../services/audioFeedback';
 import { speechQueue } from '../speech/SpeechQueue';
 import {
   ObstacleDetector,
@@ -10,6 +10,38 @@ import {
 import { RoadCrossingDetector } from '../vision/RoadCrossingDetector';
 import { drawVisionHud } from '../vision/visionHudOverlay';
 import { MapView } from './MapView';
+
+/**
+ * Ensures pedestrian turn directions explicitly use natural speech like 'Take right', 'Take left'.
+ */
+export function formatTurnInstruction(instruction: string, maneuver?: string): string {
+  let text = instruction || 'Walk forward';
+  text = text.replace(/^Turn right\b/i, 'Take right');
+  text = text.replace(/^Turn left\b/i, 'Take left');
+  text = text.replace(/^Turn slight right\b/i, 'Take slight right');
+  text = text.replace(/^Turn slight left\b/i, 'Take slight left');
+  text = text.replace(/^Turn sharp right\b/i, 'Take sharp right');
+  text = text.replace(/^Turn sharp left\b/i, 'Take sharp left');
+
+  if (maneuver) {
+    const m = maneuver.toLowerCase();
+    if (m.includes('right') && !text.toLowerCase().includes('right')) {
+      text = `Take right, ${text}`;
+    } else if (m.includes('left') && !text.toLowerCase().includes('left')) {
+      text = `Take left, ${text}`;
+    }
+  }
+  return text;
+}
+
+export function getTurnDirection(step?: RouteStep): 'left' | 'right' | 'ahead' {
+  if (!step) return 'ahead';
+  const m = (step.maneuver || '').toLowerCase();
+  const inst = (step.instruction || '').toLowerCase();
+  if (m.includes('right') || inst.includes('right')) return 'right';
+  if (m.includes('left') || inst.includes('left')) return 'left';
+  return 'ahead';
+}
 
 interface VoiceCoPilotProps {
   route: RouteResponse;
@@ -328,22 +360,28 @@ export function VoiceCoPilot({
     // 20m warning
     if (dist <= 22 && dist > 12 && !alerted20mRef.current) {
       alerted20mRef.current = true;
-      playWaypointPing();
-      speak(`In 20 metres, ${step.instruction}.`, 'NAVIGATION');
+      const dir = getTurnDirection(step);
+      playSpatialTurnCue(dir);
+      const spoken = formatTurnInstruction(step.instruction, step.maneuver);
+      speak(`In 20 metres, ${spoken}.`, 'NAVIGATION');
     }
 
     // 8m prompt
     if (dist <= 10 && dist > 3 && !alerted8mRef.current) {
       alerted8mRef.current = true;
-      playWaypointPing();
-      speak(`In a few steps, ${step.instruction}.`, 'NAVIGATION');
+      const dir = getTurnDirection(step);
+      playSpatialTurnCue(dir);
+      const spoken = formatTurnInstruction(step.instruction, step.maneuver);
+      speak(`In a few steps, ${spoken}.`, 'NAVIGATION');
     }
 
-    // 2m transition
+    // 2m transition (executing the turn)
     if (dist <= 3 && !alerted2mRef.current) {
       alerted2mRef.current = true;
-      playTurnCue();
-      speak(`${step.instruction}.`, 'NAVIGATION');
+      const dir = getTurnDirection(step);
+      playSpatialTurnCue(dir);
+      const spoken = formatTurnInstruction(step.instruction, step.maneuver);
+      speak(`${spoken} now.`, 'NAVIGATION');
 
       const nextIdx = stepIndexRef.current + 1;
       if (nextIdx < route.steps.length) {
@@ -357,7 +395,10 @@ export function VoiceCoPilot({
         if (following) {
           setTimeout(() => {
             if (activeRef.current) {
-              speak(`Then, in ${following.distanceMeters} metres: ${following.instruction}.`, 'NAVIGATION');
+              const fDir = getTurnDirection(following);
+              playSpatialTurnCue(fDir);
+              const fSpoken = formatTurnInstruction(following.instruction, following.maneuver);
+              speak(`Then, in ${following.distanceMeters} metres: ${fSpoken}.`, 'NAVIGATION');
             }
           }, 2400);
         }
@@ -371,7 +412,7 @@ export function VoiceCoPilot({
     }
   }
 
-  // Simulation step for testing without physical walking
+  // Simulation step for testing without physical walking: advances 5m towards current step waypoint
   function handleSimulateStep() {
     const step = route.steps[stepIndexRef.current];
     if (!step) return;
@@ -386,11 +427,57 @@ export function VoiceCoPilot({
     processPosition(nextPos);
   }
 
-  // Repeat current step instruction
+  // Advance to next turn step directly (instant turn testing)
+  function handleNextTurn() {
+    if (stepIndexRef.current < route.steps.length - 1) {
+      const nextIdx = stepIndexRef.current + 1;
+      stepIndexRef.current = nextIdx;
+      setStepIndex(nextIdx);
+      alerted20mRef.current = false;
+      alerted8mRef.current = false;
+      alerted2mRef.current = false;
+
+      const nextSt = route.steps[nextIdx];
+      if (nextSt) {
+        setCurrentCoords(nextSt.location);
+        coordsRef.current = nextSt.location;
+        const dir = getTurnDirection(nextSt);
+        playSpatialTurnCue(dir);
+        const formatted = formatTurnInstruction(nextSt.instruction, nextSt.maneuver);
+        speak(`${formatted}, then continue for ${nextSt.distanceMeters} metres.`, 'NAVIGATION');
+      }
+    }
+  }
+
+  // Return to previous turn step
+  function handlePreviousTurn() {
+    if (stepIndexRef.current > 0) {
+      const prevIdx = stepIndexRef.current - 1;
+      stepIndexRef.current = prevIdx;
+      setStepIndex(prevIdx);
+      alerted20mRef.current = false;
+      alerted8mRef.current = false;
+      alerted2mRef.current = false;
+
+      const prevSt = route.steps[prevIdx];
+      if (prevSt) {
+        setCurrentCoords(prevSt.location);
+        coordsRef.current = prevSt.location;
+        const dir = getTurnDirection(prevSt);
+        playSpatialTurnCue(dir);
+        const formatted = formatTurnInstruction(prevSt.instruction, prevSt.maneuver);
+        speak(`Back to previous step: ${formatted}.`, 'NAVIGATION');
+      }
+    }
+  }
+
+  // Repeat current step instruction with spatial cue
   function handleRepeat() {
     if (!currentStep) return;
-    playTurnCue();
-    speak(`Current instruction: ${currentStep.instruction}. Corner is ${distToCorner} metres away.`, 'INFO');
+    const dir = getTurnDirection(currentStep);
+    playSpatialTurnCue(dir);
+    const spoken = formatTurnInstruction(currentStep.instruction, currentStep.maneuver);
+    speak(`Current instruction: ${spoken}. Corner is ${distToCorner} metres away.`, 'INFO');
   }
 
   // Speak current location description
@@ -399,8 +486,9 @@ export function VoiceCoPilot({
     const step = route.steps[stepIndexRef.current];
     const remKm = (remainingMeters / 1000).toFixed(1);
     const dest = destinationLabel ? `heading towards ${destinationLabel}` : '';
+    const spokenStep = step ? formatTurnInstruction(step.instruction, step.maneuver) : '';
     const text = step
-      ? `You are on the path ${dest}. Next turn: ${step.instruction} in ${distToCorner} metres. ${remKm} kilometres remaining.`
+      ? `You are on the path ${dest}. Next turn: ${spokenStep} in ${distToCorner} metres. ${remKm} kilometres remaining.`
       : `Walking route active, ${remKm} km to destination.`;
     speak(text, 'INFO');
   }
@@ -433,10 +521,12 @@ export function VoiceCoPilot({
     }
 
     // Initial announcement
-    playTurnCue();
     const firstStep = route.steps[0];
+    const firstDir = getTurnDirection(firstStep);
+    playSpatialTurnCue(firstDir);
+    const firstSpoken = firstStep ? formatTurnInstruction(firstStep.instruction, firstStep.maneuver) : 'Head forward';
     const initialPrompt = firstStep
-      ? `Starting Voice Co-Pilot to ${destinationLabel ?? 'destination'}. First: ${firstStep.instruction}, for ${firstStep.distanceMeters} metres.`
+      ? `Starting Voice Co-Pilot to ${destinationLabel ?? 'destination'}. First: ${firstSpoken}, for ${firstStep.distanceMeters} metres.`
       : 'Starting Voice Co-Pilot.';
     speak(initialPrompt, 'NAVIGATION');
   }
@@ -514,12 +604,14 @@ export function VoiceCoPilot({
           justifyContent: 'space-between',
           padding: '0.45rem 0.85rem',
           background: 'rgba(13, 19, 29, 0.95)',
-          border: '1.5px solid rgba(56, 189, 248, 0.3)',
+          border: `1.5px solid ${getTurnDirection(currentStep) === 'right' ? '#00FF66' : getTurnDirection(currentStep) === 'left' ? '#38bdf8' : 'rgba(56, 189, 248, 0.3)'}`,
           borderRadius: '14px',
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
           gap: '10px',
           flexShrink: 0,
+          cursor: 'pointer',
         }}
+        onClick={handleRepeat}
         role="region"
         aria-live="assertive"
       >
@@ -528,18 +620,36 @@ export function VoiceCoPilot({
             {currentStep ? getManeuverIcon(currentStep.maneuver) : '🚶'}
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            <span
-              style={{
-                fontSize: '1rem',
-                fontWeight: 800,
-                color: '#ffffff',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {currentStep?.instruction ?? 'Walk forward'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span
+                style={{
+                  fontSize: '1rem',
+                  fontWeight: 900,
+                  color: '#ffffff',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {currentStep ? formatTurnInstruction(currentStep.instruction, currentStep.maneuver) : 'Walk forward'}
+              </span>
+              {getTurnDirection(currentStep) !== 'ahead' && (
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 900,
+                    padding: '2px 6px',
+                    borderRadius: '6px',
+                    background: getTurnDirection(currentStep) === 'right' ? 'rgba(0, 255, 102, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                    color: getTurnDirection(currentStep) === 'right' ? '#00FF66' : '#38bdf8',
+                    border: `1px solid ${getTurnDirection(currentStep) === 'right' ? '#00FF66' : '#38bdf8'}`,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {getTurnDirection(currentStep) === 'right' ? 'TAKE RIGHT' : 'TAKE LEFT'}
+                </span>
+              )}
+            </div>
             <span style={{ fontSize: '0.78rem', color: '#93c5fd', fontWeight: 700 }}>
               {distToCorner}m to turn · {remainingMeters}m to {destinationLabel ?? 'destination'}
             </span>
@@ -548,7 +658,10 @@ export function VoiceCoPilot({
 
         <button
           type="button"
-          onClick={handleStop}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleStop();
+          }}
           style={{
             background: 'rgba(239, 68, 68, 0.15)',
             border: '1.5px solid #ef4444',
@@ -699,21 +812,59 @@ export function VoiceCoPilot({
         />
       </div>
 
-      {/* Minimal Utility Bar: Repeat & GPS Sim */}
-      <div style={{ display: 'flex', gap: '8px', flexShrink: 0, paddingBottom: '98px' }}>
+      {/* Navigation Control Bar: Left / Repeat / Right / Step */}
+      <div style={{ display: 'flex', gap: '6px', flexShrink: 0, paddingBottom: '98px', flexWrap: 'nowrap' }}>
+        <button
+          type="button"
+          className="btn secondary"
+          onClick={handlePreviousTurn}
+          disabled={stepIndex <= 0}
+          style={{
+            flex: 1,
+            minHeight: '44px',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            padding: '0.35rem 0.3rem',
+            borderRadius: '12px',
+            opacity: stepIndex <= 0 ? 0.4 : 1,
+          }}
+          title="Previous Turn / Step"
+        >
+          ⏮️ Prev Turn
+        </button>
         <button
           type="button"
           className="btn secondary"
           onClick={handleRepeat}
           style={{
-            flex: 1,
-            minHeight: '42px',
-            fontSize: '0.88rem',
-            padding: '0.35rem 0.6rem',
+            flex: 1.2,
+            minHeight: '44px',
+            fontSize: '0.84rem',
+            fontWeight: 800,
+            padding: '0.35rem 0.4rem',
             borderRadius: '12px',
           }}
+          title="Repeat current instruction"
         >
-          🔊 Repeat Turn
+          🔊 Repeat
+        </button>
+        <button
+          type="button"
+          className="btn secondary"
+          onClick={handleNextTurn}
+          disabled={stepIndex >= route.steps.length - 1}
+          style={{
+            flex: 1,
+            minHeight: '44px',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            padding: '0.35rem 0.3rem',
+            borderRadius: '12px',
+            opacity: stepIndex >= route.steps.length - 1 ? 0.4 : 1,
+          }}
+          title="Next Turn / Step"
+        >
+          ⏭️ Next Turn
         </button>
         <button
           type="button"
@@ -721,14 +872,15 @@ export function VoiceCoPilot({
           onClick={handleSimulateStep}
           style={{
             flex: 1,
-            minHeight: '42px',
-            fontSize: '0.88rem',
-            padding: '0.35rem 0.6rem',
+            minHeight: '44px',
+            fontSize: '0.8rem',
+            fontWeight: 800,
+            padding: '0.35rem 0.3rem',
             borderRadius: '12px',
           }}
           title="Simulate walking 5m forward"
         >
-          🚶 Step 5m (Sim)
+          🚶 Step 5m
         </button>
       </div>
     </div>

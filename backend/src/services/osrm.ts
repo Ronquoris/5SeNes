@@ -36,12 +36,24 @@ function describeStep(step: OsrmStep): string {
   const { type, modifier } = step.maneuver;
   const streetName = step.name ? ` onto ${step.name}` : '';
 
-  if (type === 'depart') return `Head ${modifier ?? 'forward'}${streetName}`;
+  if (type === 'depart') return `Head forward${streetName}`;
   if (type === 'arrive') return 'Arrive at your destination';
-  if (type === 'turn' && modifier) return `Turn ${modifier}${streetName}`;
-  if (type === 'new name' && step.name) return `Continue onto ${step.name}`;
+
+  if (modifier === 'right') return `Take right${streetName}`;
+  if (modifier === 'left') return `Take left${streetName}`;
+  if (modifier === 'slight right') return `Take slight right${streetName}`;
+  if (modifier === 'slight left') return `Take slight left${streetName}`;
+  if (modifier === 'sharp right') return `Take sharp right${streetName}`;
+  if (modifier === 'sharp left') return `Take sharp left${streetName}`;
+  if (modifier === 'uturn') return `Make a U-turn${streetName}`;
+
+  if (type === 'turn' && modifier) return `Take ${modifier}${streetName}`;
+  if (type === 'fork' && modifier) return `Take the ${modifier} fork${streetName}`;
+  if (type === 'end of road' && modifier) return `At the end of the road, take ${modifier}${streetName}`;
   if (type === 'roundabout') return `Go through the roundabout${streetName}`;
-  return `Continue${streetName}`;
+  if (type === 'new name' && step.name) return `Continue straight onto ${step.name}`;
+
+  return `Continue straight${streetName}`;
 }
 
 export async function getFootRoute(

@@ -467,6 +467,7 @@ export function NavigatePage() {
       // User released while in hold-to-speak mode: finalize speech & process query
       isHoldingToSpeakRef.current = false;
       stopHoldVoiceRecognition();
+      setTimeout(() => speechQueue.setMicActive(false), 150);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate([30]);
       }

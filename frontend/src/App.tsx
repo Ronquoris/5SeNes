@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 import { SkipLink } from './components/SkipLink';
 import { LiveRegion } from './components/LiveRegion';
@@ -7,8 +8,26 @@ import { NearbyPage } from './pages/NearbyPage';
 import { HazardsPage } from './pages/HazardsPage';
 import { SosPage } from './pages/SosPage';
 import { SosSharePage } from './pages/SosSharePage';
+import { unlockAudio } from './services/audioFeedback';
 
 export default function App() {
+  useEffect(() => {
+    function handleFirstInteraction() {
+      unlockAudio();
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    }
+    window.addEventListener('pointerdown', handleFirstInteraction, { passive: true });
+    window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+    window.addEventListener('keydown', handleFirstInteraction, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, []);
+
   return (
     <>
       <SkipLink />
