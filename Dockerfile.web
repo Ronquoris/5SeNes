@@ -1,0 +1,23 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy root and frontend package files to support workspaces
+COPY package*.json ./
+COPY frontend/package*.json ./frontend/
+
+RUN npm install
+
+COPY frontend ./frontend
+
+WORKDIR /app/frontend
+RUN npm run build
+
+# Production serve stage using Caddy
+FROM caddy:2-alpine
+
+COPY --from=builder /app/frontend/dist /srv/dist
+COPY Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 80 443

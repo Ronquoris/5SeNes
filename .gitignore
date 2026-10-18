@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+*/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs (built cleanly on target environment)
+dist/
+*/dist/
+build/
+
+# Local databases and logs
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+logs/
+
+# Windows executables & deployment archives
+*.exe
+cloudflared.exe
+*.zip
+*.tar
+*.tar.gz
+5sense-deploy.zip
+5sense-deploy.tar.gz
+
+# Environment configuration
+.env
+.env*
+**/.env
+**/.env*
+!.env.example
+!**/.env.example
+
+# Editor & System metadata
+.vscode/
+.idea/
+.claude/
+.gemini/
+.DS_Store
+Thumbs.db
+
+# Project planning documents
+*.docx

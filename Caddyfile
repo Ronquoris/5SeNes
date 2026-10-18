@@ -1,0 +1,16 @@
+# Change :80 to your domain name (e.g., app.5sense.ai) for automatic free HTTPS via Let's Encrypt!
+:80 {
+    encode gzip zstd
+
+    # Reverse proxy backend API endpoints
+    handle /api/* {
+        reverse_proxy backend:4000
+    }
+
+    # Serve React Frontend SPA
+    handle {
+        root * /srv/dist
+        try_files {path} /index.html
+        file_server
+    }
+}
